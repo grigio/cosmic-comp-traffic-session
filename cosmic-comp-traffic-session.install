@@ -1,19 +1,40 @@
+# Runs after a fresh install: make this the session gtkgreet preselects.
+# On upgrade the config is left alone, so a deliberate switch to another session
+# is not undone by every package update.
 post_install() {
-  cat <<'EOF'
-The session is installed, but not yet the greeter default. To preselect it in
-gtkgreet (rewrites only the -c argument of /etc/greetd/config.toml, with
-timestamped backups, and adds it to /etc/greetd/environments):
+  if [ ! -x /usr/bin/cosmic-comp-traffic-session-default ]; then
+    return 0
+  fi
+
+  if /usr/bin/cosmic-comp-traffic-session-default >/dev/null 2>&1; then
+    cat <<'EOF'
+cosmic-comp-traffic-session is now the greeter default: the -c argument of
+/etc/greetd/config.toml was rewritten (previous file kept next to it as
+config.toml.bak.<timestamp>).
+
+It takes effect at the next greetd start: a reboot, or
+`systemctl restart greetd` while logged out (restarting it from inside a
+session ends that session).
+EOF
+  else
+    cat <<'EOF'
+Could not preselect the session automatically: /etc/greetd/config.toml is
+missing or does not run `gtkgreet -c`. Set it by hand with:
 
   sudo cosmic-comp-traffic-session-default
 
-That takes effect at the next greetd start: a reboot, or
-`systemctl restart greetd` while logged out. Until then the session is still
-selectable from the greeter's session list.
+The session is selectable from the greeter either way.
 EOF
+  fi
 }
 
 post_upgrade() {
-  post_install
+  cat <<'EOF'
+The greeter default was left as it is. To make this session the preselected one
+again:
+
+  sudo cosmic-comp-traffic-session-default
+EOF
 }
 
 pre_remove() {

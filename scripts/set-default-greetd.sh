@@ -11,8 +11,11 @@
 # lands at the next greetd start: a reboot, or `systemctl restart greetd` while
 # you are logged out.
 #
-# The package installs this as /usr/bin/cosmic-comp-traffic-session-default.
+# The package installs this as /usr/bin/cosmic-comp-traffic-session-default and
+# runs it from .install, i.e. as root; then sudo is not needed (and not used).
 set -euo pipefail
+
+if [[ $EUID -eq 0 ]]; then SUDO=(); else SUDO=(sudo); fi
 
 cmd=/usr/local/bin/cosmic-comp-traffic-session
 conf=/etc/greetd/config.toml
@@ -31,15 +34,15 @@ grep -q 'gtkgreet .*-c' "$conf" || {
     exit 1
 }
 
-sudo cp -a "$conf" "$conf.bak.$stamp"
+"${SUDO[@]}" cp -a "$conf" "$conf.bak.$stamp"
 # only the -c argument changes; cage and the rest of the line stay as they are
-sudo sed -E -i "s|(-c[[:space:]]+)[^\"[:space:]]+|\1$cmd|" "$conf"
+"${SUDO[@]}" sed -E -i "s|(-c[[:space:]]+)[^\"[:space:]]+|\1$cmd|" "$conf"
 
 if [[ -f $envs ]]; then
-    sudo cp -a "$envs" "$envs.bak.$stamp"
-    grep -qxF "$cmd" "$envs" || printf '%s\n' "$cmd" | sudo tee -a "$envs" >/dev/null
+    "${SUDO[@]}" cp -a "$envs" "$envs.bak.$stamp"
+    grep -qxF "$cmd" "$envs" || printf '%s\n' "$cmd" | "${SUDO[@]}" tee -a "$envs" >/dev/null
 else
-    printf '%s\n' "$cmd" | sudo tee "$envs" >/dev/null
+    printf '%s\n' "$cmd" | "${SUDO[@]}" tee "$envs" >/dev/null
 fi
 
 echo "default session -> $cmd"
