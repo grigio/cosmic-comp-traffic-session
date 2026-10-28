@@ -1,7 +1,8 @@
 #!/bin/sh
 # cosmic-comp-traffic — minimal COSMIC session: the patched compositor
-# Canonical source: ~/Code/cosmic-comp-traffic-session/files/usr/local/bin/
-# (installed by scripts/install.sh; edit there, not in /usr/local/bin)
+# Source: https://github.com/grigio/cosmic-comp-traffic-session
+# (installed by the cosmic-comp-traffic-session package; edit the source, not
+# the copy in /usr/local/bin)
 # (macOS traffic-light decorations, wlr-foreign-toplevel, 3-finger workspace
 # swipe, in-process Alt+Tab) with Noctalia 5.3 as the shell.
 # XDG session entry: /usr/share/wayland-sessions/cosmic-comp-traffic.desktop
@@ -40,7 +41,7 @@ say() { echo "cosmic-comp-traffic: $*" >>"$log"; }
 # `pacman -S cosmic-comp` silently reverts the decorations.
 if ! pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
     say "warning: cosmic-comp-traffic is not installed, /usr/bin/cosmic-comp is unpatched"
-    say "reinstall with ~/Code/cosmic-comp-traffic/scripts/install-latest.sh"
+    say "reinstall cosmic-comp-traffic from https://github.com/grigio/cosmic-comp-traffic/releases"
 fi
 
 # cosmic-comp picks its backend from the environment (src/backend/mod.rs):

@@ -21,8 +21,8 @@ esac
 
 if ! pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
     echo "warning: cosmic-comp-traffic is not installed; /usr/bin/cosmic-comp is the" >&2
-    echo "         unpatched compositor. Install it first:" >&2
-    echo "         ~/Code/cosmic-comp-traffic/scripts/install-latest.sh" >&2
+    echo "         unpatched compositor. Install it first, from" >&2
+    echo "         https://github.com/grigio/cosmic-comp-traffic/releases" >&2
 fi
 
 # If the files are already package-managed, copying over them only makes pacman's

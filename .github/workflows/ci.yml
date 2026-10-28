@@ -1,0 +1,54 @@
+name: CI
+
+# Cheap sanity checks on every push / pull request: the shell scripts pass
+# shellcheck and the PKGBUILD still builds. Releases are built by
+# arch-package.yml on v* tags.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          set -euo pipefail
+          shellcheck -s sh files/usr/local/bin/cosmic-comp-traffic-session
+          shellcheck -s bash scripts/*.sh cosmic-comp-traffic-session.install
+
+  package:
+    name: makepkg
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+    steps:
+      - name: Bootstrap git
+        run: pacman -Syu --noconfirm --needed --disable-download-timeout git
+
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          useradd -m builder 2>/dev/null || true
+          mkdir -p /tmp/pkgout
+          chown -R builder:builder "$GITHUB_WORKSPACE" /tmp/pkgout
+          # cosmic-comp / noctalia are not in the official repos: skip the dep check
+          su builder -s /bin/bash -c "
+            cd '$GITHUB_WORKSPACE'
+            PKGDEST=/tmp/pkgout makepkg --nodeps --noconfirm --force
+          "
+          ls -l /tmp/pkgout
+          # the binary must be executable inside the package
+          bsdtar -tvf /tmp/pkgout/*.pkg.tar.zst | grep -E 'usr/local/bin/.*rwxr-xr-x'

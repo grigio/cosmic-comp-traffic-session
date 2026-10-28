@@ -19,23 +19,31 @@ session and can be removed again with `sudo pacman -S cosmic-comp`.
 | `files/usr/lib/systemd/user/cosmic-comp-traffic-session.target` | same | session target, `BindsTo=graphical-session.target` |
 | `scripts/install.sh` | — | copies `files/` onto `/` (`--default` also runs the next script) |
 | `scripts/set-default-greetd.sh` | `/usr/bin/cosmic-comp-traffic-session-default` | preselects the session in gtkgreet |
-| `PKGBUILD`, `cosmic-comp-traffic-session.install` | — | local package, built from this tree |
+| `PKGBUILD`, `cosmic-comp-traffic-session.install` | — | package, built from this tree by CI on every `v*` tag |
+| `.github/workflows/arch-package.yml` | — | builds and publishes the package for a release tag |
+| `.github/workflows/ci.yml` | — | shellcheck + `makepkg` on every push |
 
 The repo layout mirrors `/`, so installing is a copy and the files can be
 diffed against the live ones at any time.
 
 ## Install
 
-Two ways, both install the same files — use one, and prefer the package so
+Three ways, all installing the same files — use one, and prefer the package so
 pacman owns `/usr`:
 
 ```sh
-# A) local package
-makepkg -f
-sudo pacman -U cosmic-comp-traffic-session-1.0.0-1-any.pkg.tar.zst
+# A) the published package (recommended)
+gh release download v1.1.0 -R grigio/cosmic-comp-traffic-session \
+  -p '*.pkg.tar.zst*' -D /tmp/cosmic-comp-traffic-session
+cd /tmp/cosmic-comp-traffic-session && sha256sum -c ./*.pkg.tar.zst.sha256
+sudo pacman -U ./*.pkg.tar.zst
 sudo cosmic-comp-traffic-session-default        # optional: greeter default
 
-# B) straight from the checkout
+# B) build it locally from this checkout
+makepkg -fi
+sudo cosmic-comp-traffic-session-default        # optional: greeter default
+
+# C) straight from the checkout, no package
 ./scripts/install.sh              # session only
 ./scripts/install.sh --default    # ... and make it the greeter default
 ```
@@ -47,15 +55,29 @@ once the package is installed, so pacman's file list stays accurate.
 
 ### The package
 
-`arch=(any)`, no sources (it packages this tree), `pkgver`/`pkgrel` bumped by
-hand when the files change. It installs the three session files plus
-`/usr/bin/cosmic-comp-traffic-session-default` and the docs under
+`arch=(any)`, no sources (it packages this tree). It installs the three session
+files plus `/usr/bin/cosmic-comp-traffic-session-default` and the docs under
 `/usr/share/doc/cosmic-comp-traffic-session/`.
+
+Every `v<major>.<minor>.<patch>` tag is built by
+`.github/workflows/arch-package.yml` in an `archlinux:base-devel` container and
+attached to its GitHub release. `pkgver` comes from the tag, `pkgrel` from the
+number of commits that touched the packaging (`PKGBUILD`, the `.install` file,
+`files/`, `scripts/`), so a rebuild of a tag is still an upgrade for pacman.
+Locally, `makepkg -f` uses the `pkgver` written in the `PKGBUILD`, or the
+injected one:
+
+```sh
+SESSION_VERSION=1.1.0 SESSION_PKGREL=4 makepkg -f
+```
 
 | | |
 |---|---|
 | depends | `cosmic-comp` (provided by `cosmic-comp-traffic`), `noctalia` |
 | optdepends | `xdg-desktop-portal-cosmic` (screenshots/screencast/file chooser), `gnome-keyring` (Secret Service), `iproute2` (socket lookup via `ss`) |
+
+Neither dependency is in the official repositories, so `makepkg` needs
+`--nodeps` unless both are already installed.
 
 A post-install message repeats the "run `cosmic-comp-traffic-session-default`"
 hint, and `pre_remove` warns to point the greeter at another session first.

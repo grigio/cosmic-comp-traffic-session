@@ -1,18 +1,22 @@
 # Maintainer: grigio <grigio.org>
 #
-# Local package for the cosmic-comp-traffic session: the launcher, the XDG
-# session entry and the systemd user target, all read from files/ in this repo.
+# Package for the cosmic-comp-traffic session: the launcher, the XDG session
+# entry and the systemd user target, all read from files/ in this repo.
 # Nothing is downloaded — the repo is the source tree, so $startdir is used in
 # package() and there is no source array.
 #
-#   makepkg -f     # -> cosmic-comp-traffic-session-<pkgver>-<pkgrel>-any.pkg.tar.zst
-#   makepkg -fi    # ... and install it
+#   makepkg -f       # -> cosmic-comp-traffic-session-<pkgver>-<pkgrel>-any.pkg.tar.zst
+#   makepkg -fi      # ... and install it
 #
 # Bump pkgver when the files change, or pkgrel for a packaging-only change.
+# Releases are built by .github/workflows/arch-package.yml on every v* tag,
+# which injects the tag as pkgver and the packaging commit count as pkgrel:
+#
+#   SESSION_VERSION=1.2.0 SESSION_PKGREL=4 makepkg -f
 
 pkgname=cosmic-comp-traffic-session
-pkgver=1.0.0
-pkgrel=3
+pkgver=${SESSION_VERSION:-1.1.0}
+pkgrel=${SESSION_PKGREL:-1}
 pkgdesc='Minimal COSMIC session: cosmic-comp-traffic as the compositor, Noctalia as the shell'
 arch=(any)
 url='https://github.com/grigio/cosmic-comp-traffic-session'
