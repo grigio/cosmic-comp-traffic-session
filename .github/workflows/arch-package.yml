@@ -42,7 +42,7 @@ jobs:
       - name: Bootstrap git and gh
         run: pacman -Syu --noconfirm --needed --disable-download-timeout git github-cli
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.tag || github.ref }}

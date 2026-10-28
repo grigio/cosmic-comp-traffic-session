@@ -18,7 +18,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: shellcheck
         run: |
           set -euo pipefail
@@ -35,7 +35,7 @@ jobs:
       - name: Bootstrap git
         run: pacman -Syu --noconfirm --needed --disable-download-timeout git
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build
         run: |
@@ -50,5 +50,7 @@ jobs:
             PKGDEST=/tmp/pkgout makepkg --nodeps --noconfirm --force
           "
           ls -l /tmp/pkgout
-          # the binary must be executable inside the package
-          bsdtar -tvf /tmp/pkgout/*.pkg.tar.zst | grep -E 'usr/local/bin/.*rwxr-xr-x'
+          # the launcher must be executable inside the package
+          bsdtar -tvf /tmp/pkgout/*.pkg.tar.zst | tee /tmp/pkglist.txt
+          grep -qE '^-rwxr-xr-x .*usr/local/bin/cosmic-comp-traffic-session$' /tmp/pkglist.txt
+          grep -qE '^-rw-r--r-- .*usr/share/wayland-sessions/cosmic-comp-traffic\.desktop$' /tmp/pkglist.txt
