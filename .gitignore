@@ -1,0 +1,7 @@
+# makepkg artifacts
+pkg/
+src/
+out/
+*.pkg.tar.zst
+*.pkg.tar.zst.sha256
+*.pkg.tar.zst.sig

@@ -10,6 +10,8 @@
 # greetd reads its config once, at startup (greetd/src/main.rs), so the change
 # lands at the next greetd start: a reboot, or `systemctl restart greetd` while
 # you are logged out.
+#
+# The package installs this as /usr/bin/cosmic-comp-traffic-session-default.
 set -euo pipefail
 
 cmd=/usr/local/bin/cosmic-comp-traffic-session
@@ -17,7 +19,11 @@ conf=/etc/greetd/config.toml
 envs=/etc/greetd/environments
 stamp=$(date +%Y%m%d-%H%M%S)
 
-[[ -x $cmd ]] || { echo "$cmd is missing, run ./scripts/install.sh first" >&2; exit 1; }
+[[ -x $cmd ]] || {
+    echo "$cmd is missing, install the session first (./scripts/install.sh" >&2
+    echo "or the cosmic-comp-traffic-session package)" >&2
+    exit 1
+}
 [[ -f $conf ]] || { echo "$conf not found (greetd is not configured here?)" >&2; exit 1; }
 
 grep -q 'gtkgreet .*-c' "$conf" || {

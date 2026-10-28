@@ -25,6 +25,14 @@ if ! pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
     echo "         ~/Code/cosmic-comp-traffic/scripts/install-latest.sh" >&2
 fi
 
+# If the files are already package-managed, copying over them only makes pacman's
+# file list lie. Rebuild the package instead.
+if pacman -Qq cosmic-comp-traffic-session >/dev/null 2>&1; then
+    echo "cosmic-comp-traffic-session is installed as a package; pacman owns these" >&2
+    echo "files. Bump pkgver/pkgrel in PKGBUILD and run 'makepkg -fi' instead." >&2
+    exit 1
+fi
+
 while IFS= read -r -d '' f; do
     rel=${f#"$src"/}
     perm=644

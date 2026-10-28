@@ -18,22 +18,48 @@ session and can be removed again with `sudo pacman -S cosmic-comp`.
 | `files/usr/share/wayland-sessions/cosmic-comp-traffic.desktop` | same | XDG session entry, listed by the greeter |
 | `files/usr/lib/systemd/user/cosmic-comp-traffic-session.target` | same | session target, `BindsTo=graphical-session.target` |
 | `scripts/install.sh` | — | copies `files/` onto `/` (`--default` also runs the next script) |
-| `scripts/set-default-greetd.sh` | — | preselects the session in gtkgreet |
+| `scripts/set-default-greetd.sh` | `/usr/bin/cosmic-comp-traffic-session-default` | preselects the session in gtkgreet |
+| `PKGBUILD`, `cosmic-comp-traffic-session.install` | — | local package, built from this tree |
 
 The repo layout mirrors `/`, so installing is a copy and the files can be
 diffed against the live ones at any time.
 
 ## Install
 
+Two ways, both install the same files — use one, and prefer the package so
+pacman owns `/usr`:
+
 ```sh
-cd ~/Code/cosmic-comp-traffic-session
+# A) local package
+makepkg -f
+sudo pacman -U cosmic-comp-traffic-session-1.0.0-1-any.pkg.tar.zst
+sudo cosmic-comp-traffic-session-default        # optional: greeter default
+
+# B) straight from the checkout
 ./scripts/install.sh              # session only
 ./scripts/install.sh --default    # ... and make it the greeter default
 ```
 
 `install.sh` warns if `cosmic-comp-traffic` is not installed, because
 `/usr/bin/cosmic-comp` would then be the unpatched compositor; the session
-itself also checks this at login and logs the warning.
+itself also checks this at login and logs the warning. It refuses to run at all
+once the package is installed, so pacman's file list stays accurate.
+
+### The package
+
+`arch=(any)`, no sources (it packages this tree), `pkgver`/`pkgrel` bumped by
+hand when the files change. It installs the three session files plus
+`/usr/bin/cosmic-comp-traffic-session-default` and the docs under
+`/usr/share/doc/cosmic-comp-traffic-session/`.
+
+| | |
+|---|---|
+| depends | `cosmic-comp` (provided by `cosmic-comp-traffic`), `noctalia` |
+| optdepends | `xdg-desktop-portal-cosmic` (screenshots/screencast/file chooser), `gnome-keyring` (Secret Service), `iproute2` (socket lookup via `ss`) |
+
+A post-install message repeats the "run `cosmic-comp-traffic-session-default`"
+hint, and `pre_remove` warns to point the greeter at another session first.
+
 
 ## Making it the greeter default
 
@@ -113,7 +139,10 @@ journalctl -b _COMM=cosmic-comp
 sudo cp -a /etc/greetd/config.toml.bak.<timestamp> /etc/greetd/config.toml
 sudo cp -a /etc/greetd/environments.bak.<timestamp> /etc/greetd/environments
 
-# remove the session:
+# remove the session (package install):
+sudo pacman -R cosmic-comp-traffic-session
+
+# remove the session (install.sh install):
 sudo rm /usr/share/wayland-sessions/cosmic-comp-traffic.desktop \
         /usr/local/bin/cosmic-comp-traffic-session \
         /usr/lib/systemd/user/cosmic-comp-traffic-session.target

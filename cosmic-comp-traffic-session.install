@@ -1,0 +1,26 @@
+post_install() {
+  cat <<'EOF'
+The session is installed, but not yet the greeter default. To preselect it in
+gtkgreet (rewrites only the -c argument of /etc/greetd/config.toml, with
+timestamped backups, and adds it to /etc/greetd/environments):
+
+  sudo cosmic-comp-traffic-session-default
+
+That takes effect at the next greetd start: a reboot, or
+`systemctl restart greetd` while logged out. Until then the session is still
+selectable from the greeter's session list.
+EOF
+}
+
+post_upgrade() {
+  post_install
+}
+
+pre_remove() {
+  cat <<'EOF'
+If this session is the greeter default, point /etc/greetd/config.toml at another
+command first, otherwise the greeter will try to log into a missing session:
+
+  sudo cp -a /etc/greetd/config.toml.bak.<timestamp> /etc/greetd/config.toml
+EOF
+}
