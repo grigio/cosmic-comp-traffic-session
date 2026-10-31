@@ -1,4 +1,4 @@
-# Cosmalia - Moderm Minimal Linux Desktop in < 1Gb RAM
+# Cosmalia - Modern Minimal Linux Desktop in < 1Gb RAM
 
 ![Cosmalia Desktop](./docs/cosmalia-promo.png)
 
