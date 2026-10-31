@@ -1,5 +1,5 @@
 [Unit]
-Description=COSMIC Comp Traffic session (cosmic-comp-traffic + Noctalia)
+Description=Cosmalia session (cosmic-comp-traffic + Noctalia)
 Documentation=man:systemd.special(7)
 # graphical-session.target is RefuseManualStart=yes, so it can only be pulled
 # in as a dependency of a target like this one. BindsTo makes the pair die

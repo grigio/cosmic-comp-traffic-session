@@ -2,13 +2,13 @@
 # On upgrade the config is left alone, so a deliberate switch to another session
 # is not undone by every package update.
 post_install() {
-  if [ ! -x /usr/bin/cosmic-comp-traffic-session-default ]; then
+  if [ ! -x /usr/bin/cosmalia-session-default ]; then
     return 0
   fi
 
-  if /usr/bin/cosmic-comp-traffic-session-default >/dev/null 2>&1; then
+  if /usr/bin/cosmalia-session-default >/dev/null 2>&1; then
     cat <<'EOF'
-cosmic-comp-traffic-session is now the greeter default: the -c argument of
+Cosmalia (cosmalia-session) is now the greeter default: the -c argument of
 /etc/greetd/config.toml was rewritten (previous file kept next to it as
 config.toml.bak.<timestamp>).
 
@@ -21,7 +21,7 @@ EOF
 Could not preselect the session automatically: /etc/greetd/config.toml is
 missing or does not run `gtkgreet -c`. Set it by hand with:
 
-  sudo cosmic-comp-traffic-session-default
+  sudo cosmalia-session-default
 
 The session is selectable from the greeter either way.
 EOF
@@ -33,7 +33,7 @@ post_upgrade() {
 The greeter default was left as it is. To make this session the preselected one
 again:
 
-  sudo cosmic-comp-traffic-session-default
+  sudo cosmalia-session-default
 EOF
 }
 

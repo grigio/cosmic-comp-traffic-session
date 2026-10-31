@@ -1,39 +1,41 @@
 #!/bin/sh
-# cosmic-comp-traffic — minimal COSMIC session: the patched compositor
-# Source: https://github.com/grigio/cosmic-comp-traffic-session
-# (installed by the cosmic-comp-traffic-session package; edit the source, not
-# the copy in /usr/local/bin)
-# (macOS traffic-light decorations, wlr-foreign-toplevel, 3-finger workspace
-# swipe, in-process Alt+Tab) with Noctalia 5.3 as the shell.
-# XDG session entry: /usr/share/wayland-sessions/cosmic-comp-traffic.desktop
-# systemd user target: /usr/lib/systemd/user/cosmic-comp-traffic-session.target
+# Cosmalia — a minimal COSMIC-based Wayland desktop in under 1 GB of RAM.
+# Source: https://github.com/grigio/cosmalia-session
+# (installed by the cosmalia-session package; edit the source, not
+# the copy in /usr/bin)
+# The compositor is cosmic-comp-traffic (macOS traffic-light decorations,
+# wlr-foreign-toplevel, 3-finger workspace swipe, in-process Alt+Tab); the
+# shell is Noctalia.
+# XDG session entry: /usr/share/wayland-sessions/cosmalia.desktop
+# systemd user target: /usr/lib/systemd/user/cosmalia-session.target
 #
 # What runs, and nothing else:
 #   cosmic-comp                     compositor
 #   noctalia                        bar, dock, launcher, notifications,
 #                                   lock screen, idle/suspend, polkit agent,
 #                                   MPRIS, screensaver
+#   cosmic-settings-daemon          config change notifications (see below)
 #   xdg-desktop-portal + COSMIC impl (restarted below, see the comment)
 # Already covered without starting anything here:
 #   dbus-broker                     user bus
 #   pipewire / wireplumber          socket + enabled unit (audio, screencast)
 #   gnome-keyring-daemon            secret service, socket activated
-#   gvfs-*, xdg-document-portal     D-Bus activated on first use
+#   gvfs-*, xdg-document-portal     D-Bus activated on first use, if installed
 #   upower, power-profiles-daemon   system services, session agnostic
 
 export XDG_SESSION_TYPE=wayland
-export XDG_SESSION_DESKTOP=cosmic-comp-traffic
+export XDG_SESSION_DESKTOP=cosmalia
 # The ":COSMIC" entry is what makes xdg-desktop-portal pick the cosmic backend
-# (its .portal file has UseIn=COSMIC). Without it only the gtk/wlr backends
-# match and screenshots/screencast stop working.
-export XDG_CURRENT_DESKTOP=cosmic-comp-traffic:COSMIC
+# (its .portal file has UseIn=COSMIC). Without it no backend matches and
+# screenshots/screencast stop working.
+export XDG_CURRENT_DESKTOP=cosmalia:COSMIC
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 
-log="$XDG_RUNTIME_DIR/cosmic-comp-traffic.log"
+log="$XDG_RUNTIME_DIR/cosmalia-session.log"
 : >"$log"   # per-session log; appending here grew forever across logins
 
-say() { echo "cosmic-comp-traffic: $*" >>"$log"; }
+say() { echo "cosmalia: $*" >>"$log"; }
 
 # The cosmic-comp-traffic package provides /usr/bin/cosmic-comp (it conflicts
 # with and replaces cosmic-comp), so the binary name is the stock one. Warn
@@ -53,7 +55,7 @@ if [ -z "${COSMIC_BACKEND:-}" ]; then
     unset WAYLAND_DISPLAY DISPLAY
 fi
 
-stamp="$XDG_RUNTIME_DIR/.cosmic-comp-traffic-start"
+stamp="$XDG_RUNTIME_DIR/.cosmalia-session-start"
 : >"$stamp"
 
 cosmic-comp --no-xwayland &
@@ -66,7 +68,11 @@ cleanup() {
         kill "$noctalia_pid" 2>/dev/null
         noctalia_pid=""
     fi
-    # cosmic-comp-traffic-session.target has BindsTo=graphical-session.target
+    if [ -n "${settingsd_pid:-}" ]; then
+        kill "$settingsd_pid" 2>/dev/null
+        settingsd_pid=""
+    fi
+    # cosmalia-session.target has BindsTo=graphical-session.target
     # and xdg-desktop-portal has PartOf=graphical-session.target, so this stops
     # them instead of leaving them with a stale WAYLAND_DISPLAY.
     systemctl --user --no-block stop graphical-session.target 2>/dev/null
@@ -111,7 +117,7 @@ if [ -n "$sock" ]; then
     # is silently refused. Start our own target instead, which pulls it in as
     # a dependency. Blocking, so units ordered After=graphical-session.target
     # (the portal backends) see a consistent state before Noctalia starts.
-    systemctl --user start cosmic-comp-traffic-session.target >>"$log" 2>&1
+    systemctl --user start cosmalia-session.target >>"$log" 2>&1
 
     # Both are D-Bus activated and may still be running with the previous
     # session's WAYLAND_DISPLAY (the cosmic backend has no PartOf=, so it
@@ -126,14 +132,24 @@ if [ -n "$sock" ]; then
         systemctl --user --no-block restart "$svc" 2>/dev/null
     done
 
+    # cosmic-config watches config files through a D-Bus service, and that
+    # service is cosmic-settings-daemon (libcosmic cosmic-config/src/dbus.rs:
+    # Watcher::new_config(&settings_daemon, …)). Without it every app logs
+    # "Failed to create watcher for <config>" and nothing reloads: theme edits,
+    # the Frosted glass switches and keybinds only apply at the next login.
+    # Upstream cosmic-session starts it; this session has to as well.
+    cosmic-settings-daemon >>"$log" 2>&1 &
+    settingsd_pid=$!
+
     # No --daemon: that double-forks (ppid 1), so "$!" would point at a dead
     # parent and the cleanup kill would be a no-op. Foreground keeps the pid
     # meaningful and lets everything Noctalia spawns stay in its cgroup.
     noctalia >>"$log" 2>&1 &
     noctalia_pid=$!
 else
-    echo "cosmic-comp-traffic: compositor socket not found, not starting Noctalia" >>"$log"
+    echo "cosmalia: compositor socket not found, not starting Noctalia" >>"$log"
     noctalia_pid=""
+    settingsd_pid=""
 fi
 
 wait "$comp_pid"

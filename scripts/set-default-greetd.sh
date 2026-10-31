@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Make cosmic-comp-traffic-session the entry gtkgreet preselects.
+# Make cosmalia-session the entry gtkgreet preselects.
 #
 # How the default is picked (gtkgreet src/config.c, config_update_command_selector):
 #   - the command passed with -c is appended to the session combo *first*,
@@ -11,20 +11,21 @@
 # lands at the next greetd start: a reboot, or `systemctl restart greetd` while
 # you are logged out.
 #
-# The package installs this as /usr/bin/cosmic-comp-traffic-session-default and
+# The package installs this as /usr/bin/cosmalia-session-default and
 # runs it from .install, i.e. as root; then sudo is not needed (and not used).
 set -euo pipefail
 
 if [[ $EUID -eq 0 ]]; then SUDO=(); else SUDO=(sudo); fi
 
-cmd=/usr/local/bin/cosmic-comp-traffic-session
+cmd=/usr/bin/cosmalia-session
+old_cmd=/usr/local/bin/cosmic-comp-traffic-session
 conf=/etc/greetd/config.toml
 envs=/etc/greetd/environments
 stamp=$(date +%Y%m%d-%H%M%S)
 
 [[ -x $cmd ]] || {
     echo "$cmd is missing, install the session first (./scripts/install.sh" >&2
-    echo "or the cosmic-comp-traffic-session package)" >&2
+    echo "or the cosmalia-session package)" >&2
     exit 1
 }
 [[ -f $conf ]] || { echo "$conf not found (greetd is not configured here?)" >&2; exit 1; }
@@ -40,6 +41,9 @@ grep -q 'gtkgreet .*-c' "$conf" || {
 
 if [[ -f $envs ]]; then
     "${SUDO[@]}" cp -a "$envs" "$envs.bak.$stamp"
+    # Migration from cosmic-comp-traffic-session: it listed its launcher here,
+    # and that path no longer exists after the rename.
+    "${SUDO[@]}" sed -i "\|^${old_cmd}$|d" "$envs"
     grep -qxF "$cmd" "$envs" || printf '%s\n' "$cmd" | "${SUDO[@]}" tee -a "$envs" >/dev/null
 else
     printf '%s\n' "$cmd" | "${SUDO[@]}" tee "$envs" >/dev/null

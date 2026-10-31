@@ -1,6 +1,6 @@
 name: Arch package
 
-# Builds the cosmic-comp-traffic-session Arch package and attaches it to a
+# Builds the cosmalia-session Arch package and attaches it to a
 # GitHub release, for every release tag (v*).
 #
 # Triggers
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build, e.g. v1.1.0'
+        description: 'Release tag to build, e.g. v1.2.0'
         required: true
         type: string
 
@@ -62,18 +62,18 @@ jobs:
 
           # pkgrel monotonic with packaging changes: 1, 2, 3, ...
           pkgrel=$(git rev-list --count HEAD -- \
-            PKGBUILD cosmic-comp-traffic-session.install files scripts)
+            PKGBUILD cosmalia-session.install files scripts)
           (( pkgrel >= 1 )) || pkgrel=1
-          echo "building cosmic-comp-traffic-session $version-$pkgrel"
+          echo "building cosmalia-session $version-$pkgrel"
 
           useradd -m builder 2>/dev/null || true
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
           mkdir -p /tmp/pkgout
           chown -R builder:builder "$GITHUB_WORKSPACE" /tmp/pkgout
 
-          # --nodeps: cosmic-comp and noctalia come from this project's own
-          # repository / the AUR, so they are not resolvable in a clean
-          # container and makepkg must not try to install them.
+          # --nodeps: cosmic-comp-traffic is not in the official repositories
+          # and provides cosmic-comp; skipping the check avoids pulling the
+          # stock compositor into the clean container.
           su builder -s /bin/bash -c "
             cd '$GITHUB_WORKSPACE'
             SESSION_VERSION='$version' SESSION_PKGREL='$pkgrel' \
@@ -110,31 +110,35 @@ jobs:
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           else
             notes=$(cat <<EOF
-          Arch Linux package of [cosmic-comp-traffic-session](https://github.com/$GITHUB_REPOSITORY)
-          \`$TAG\`: launcher, XDG session entry and systemd user target for a
-          cosmic-comp-traffic + Noctalia session.
+          Arch Linux package of [Cosmalia](https://github.com/$GITHUB_REPOSITORY)
+          \`$TAG\`: the opinionated XDG session (launcher, session entry and
+          systemd user target) for cosmic-comp-traffic + Noctalia.
 
           ### Install
 
           \`\`\`sh
-          gh release download $TAG -R $GITHUB_REPOSITORY -p '*.pkg.tar.zst*' -D /tmp/cosmic-comp-traffic-session
-          cd /tmp/cosmic-comp-traffic-session && sha256sum -c ./*.pkg.tar.zst.sha256
+          gh release download $TAG -R $GITHUB_REPOSITORY -p '*.pkg.tar.zst*' -D /tmp/cosmalia-session
+          cd /tmp/cosmalia-session && sha256sum -c ./*.pkg.tar.zst.sha256
           sudo pacman -U ./*.pkg.tar.zst
           \`\`\`
 
           Then, optionally, make it the greeter default:
 
           \`\`\`sh
-          sudo cosmic-comp-traffic-session-default
+          sudo cosmalia-session-default
           \`\`\`
 
           Needs [cosmic-comp-traffic](https://github.com/grigio/cosmic-comp-traffic)
-          (which provides \`cosmic-comp\`) and \`noctalia\`.
+          (which provides \`cosmic-comp\`), \`noctalia\`, \`cosmic-settings\`,
+          \`cosmic-settings-daemon\`, \`cosmic-screenshot\`,
+          \`xdg-desktop-portal-cosmic\`, \`polkit\`, \`gnome-keyring\` and
+          \`wireplumber\`. The package replaces the old
+          \`cosmic-comp-traffic-session\` package.
 
           ### Revert
 
           \`\`\`sh
-          sudo pacman -R cosmic-comp-traffic-session
+          sudo pacman -R cosmalia-session
           \`\`\`
           EOF
             )

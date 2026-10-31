@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=COSMIC Comp Traffic
-Comment=COSMIC compositor with traffic-light decorations, Noctalia shell
-Comment[it]=Compositor COSMIC con decorazioni traffic-light, shell Noctalia
-Exec=/usr/local/bin/cosmic-comp-traffic-session
-Type=Application
-DesktopNames=cosmic-comp-traffic;COSMIC
-Keywords=cosmic;cosmic-comp;noctalia;wayland;

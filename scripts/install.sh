@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install the cosmic-comp-traffic session: copies files/ onto /, so the repo
-# layout is the install layout.
+# Install the Cosmalia session: copies files/ onto /, so the repo layout is
+# the install layout.
 #
 #   ./scripts/install.sh             # session files only
 #   ./scripts/install.sh --default   # ... and preselect it in gtkgreet
@@ -27,9 +27,17 @@ fi
 
 # If the files are already package-managed, copying over them only makes pacman's
 # file list lie. Rebuild the package instead.
-if pacman -Qq cosmic-comp-traffic-session >/dev/null 2>&1; then
-    echo "cosmic-comp-traffic-session is installed as a package; pacman owns these" >&2
+if pacman -Qq cosmalia-session >/dev/null 2>&1; then
+    echo "cosmalia-session is installed as a package; pacman owns these" >&2
     echo "files. Bump pkgver/pkgrel in PKGBUILD and run 'makepkg -fi' instead." >&2
+    exit 1
+fi
+
+# The old name installed the launcher in /usr/local/bin; copying the new tree
+# over it would leave that file behind.
+if pacman -Qq cosmic-comp-traffic-session >/dev/null 2>&1; then
+    echo "the old cosmic-comp-traffic-session package is installed. Replace it" >&2
+    echo "with cosmalia-session (or remove it) before running this script." >&2
     exit 1
 fi
 

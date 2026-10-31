@@ -22,8 +22,8 @@ jobs:
       - name: shellcheck
         run: |
           set -euo pipefail
-          shellcheck -s sh files/usr/local/bin/cosmic-comp-traffic-session
-          shellcheck -s bash scripts/*.sh cosmic-comp-traffic-session.install
+          shellcheck -s sh files/usr/bin/cosmalia-session
+          shellcheck -s bash scripts/*.sh cosmalia-session.install
 
   package:
     name: makepkg
@@ -44,7 +44,9 @@ jobs:
           useradd -m builder 2>/dev/null || true
           mkdir -p /tmp/pkgout
           chown -R builder:builder "$GITHUB_WORKSPACE" /tmp/pkgout
-          # cosmic-comp / noctalia are not in the official repos: skip the dep check
+          # cosmic-comp-traffic is not in the official repos and provides
+          # cosmic-comp: skip the dep check instead of pulling the stock
+          # compositor into the clean container.
           su builder -s /bin/bash -c "
             cd '$GITHUB_WORKSPACE'
             PKGDEST=/tmp/pkgout makepkg --nodeps --noconfirm --force
@@ -52,5 +54,7 @@ jobs:
           ls -l /tmp/pkgout
           # the launcher must be executable inside the package
           bsdtar -tvf /tmp/pkgout/*.pkg.tar.zst | tee /tmp/pkglist.txt
-          grep -qE '^-rwxr-xr-x .*usr/local/bin/cosmic-comp-traffic-session$' /tmp/pkglist.txt
-          grep -qE '^-rw-r--r-- .*usr/share/wayland-sessions/cosmic-comp-traffic\.desktop$' /tmp/pkglist.txt
+          grep -qE '^-rwxr-xr-x .*usr/bin/cosmalia-session$' /tmp/pkglist.txt
+          grep -qE '^-rw-r--r-- .*usr/share/wayland-sessions/cosmalia\.desktop$' /tmp/pkglist.txt
+          grep -qE '^-rw-r--r-- .*usr/lib/systemd/user/cosmalia-session\.target$' /tmp/pkglist.txt
+          grep -qE '^-rwxr-xr-x .*usr/bin/cosmalia-session-default$' /tmp/pkglist.txt
