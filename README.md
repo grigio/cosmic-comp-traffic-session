@@ -1,4 +1,6 @@
-# Cosmalia
+# Cosmalia - Moderm Minimal Linux Desktop in < 1Gb RAM
+
+![Cosmalia Desktop](./docs/cosmalia-promo.png)
 
 Cosmalia is a modern, minimal desktop for Linux that runs in under 1 GB of
 RAM. It is built from two projects:
