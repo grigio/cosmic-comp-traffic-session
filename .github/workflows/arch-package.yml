@@ -7,8 +7,8 @@ name: Arch package
 #   push of a v* tag   build and publish that tag
 #   workflow_dispatch  rebuild an existing tag (e.g. after fixing the packaging)
 #
-# The package itself is version-less: pkgver comes from the tag (v1.2.0 ->
-# 1.2.0) and pkgrel from the number of commits that touched the packaging, so
+# The package itself is version-less: pkgver comes from the tag (v1.2.1 ->
+# 1.2.1) and pkgrel from the number of commits that touched the packaging, so
 # a rebuild of the same tag is still seen by pacman as an upgrade.
 
 on:
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build, e.g. v1.2.0'
+        description: 'Release tag to build, e.g. v1.2.1'
         required: true
         type: string
 
