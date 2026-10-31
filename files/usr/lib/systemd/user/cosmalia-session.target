@@ -1,9 +1,11 @@
 [Unit]
 Description=Cosmalia session (cosmic-comp-traffic + Noctalia)
-Documentation=man:systemd.special(7)
+Documentation=https://github.com/grigio/cosmalia-session
 # graphical-session.target is RefuseManualStart=yes, so it can only be pulled
 # in as a dependency of a target like this one. BindsTo makes the pair die
 # together: stopping graphical-session.target (session exit) stops this too.
 BindsTo=graphical-session.target
-Wants=graphical-session-pre.target
-After=graphical-session-pre.target
+# Wants= is enough to start these when the target starts; they are not enabled
+# in the user manager, so they only exist for this session.
+Wants=graphical-session-pre.target cosmic-settings-daemon.service noctalia.service
+After=graphical-session-pre.target graphical-session.target

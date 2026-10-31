@@ -60,9 +60,10 @@ jobs:
             exit 1
           }
 
-          # pkgrel monotonic with packaging changes: 1, 2, 3, ...
+          # pkgrel monotonic with packaged changes: 1, 2, 3, ...
           pkgrel=$(git rev-list --count HEAD -- \
-            PKGBUILD cosmalia-session.install files scripts)
+            PKGBUILD cosmalia-session.install files README.md LICENSE \
+            scripts/set-default-greetd.sh)
           (( pkgrel >= 1 )) || pkgrel=1
           echo "building cosmalia-session $version-$pkgrel"
 
@@ -112,7 +113,7 @@ jobs:
             notes=$(cat <<EOF
           Arch Linux package of [Cosmalia](https://github.com/$GITHUB_REPOSITORY)
           \`$TAG\`: the opinionated XDG session (launcher, session entry and
-          systemd user target) for cosmic-comp-traffic + Noctalia.
+          systemd user units) for cosmic-comp-traffic + Noctalia.
 
           ### Install
 
@@ -120,6 +121,13 @@ jobs:
           gh release download $TAG -R $GITHUB_REPOSITORY -p '*.pkg.tar.zst*' -D /tmp/cosmalia-session
           cd /tmp/cosmalia-session && sha256sum -c ./*.pkg.tar.zst.sha256
           sudo pacman -U ./*.pkg.tar.zst
+          \`\`\`
+
+          The package does not change the greeter default. To make it selectable
+          in a gtkgreet dropdown without changing the default:
+
+          \`\`\`sh
+          sudo cosmalia-session-default --list
           \`\`\`
 
           Then, optionally, make it the greeter default:

@@ -3,6 +3,7 @@ Name=Cosmalia
 Comment=Minimal COSMIC-based desktop (cosmic-comp-traffic + Noctalia)
 Comment[it]=Desktop minimale basato su COSMIC (cosmic-comp-traffic + Noctalia)
 Exec=/usr/bin/cosmalia-session
+TryExec=/usr/bin/cosmalia-session
 Type=Application
 DesktopNames=cosmalia;COSMIC
 Keywords=cosmalia;cosmic;cosmic-comp;noctalia;wayland;

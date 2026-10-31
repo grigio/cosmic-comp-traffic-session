@@ -52,9 +52,33 @@ jobs:
             PKGDEST=/tmp/pkgout makepkg --nodeps --noconfirm --force
           "
           ls -l /tmp/pkgout
-          # the launcher must be executable inside the package
+          # the launcher and helper must be executable inside the package
           bsdtar -tvf /tmp/pkgout/*.pkg.tar.zst | tee /tmp/pkglist.txt
           grep -qE '^-rwxr-xr-x .*usr/bin/cosmalia-session$' /tmp/pkglist.txt
-          grep -qE '^-rw-r--r-- .*usr/share/wayland-sessions/cosmalia\.desktop$' /tmp/pkglist.txt
-          grep -qE '^-rw-r--r-- .*usr/lib/systemd/user/cosmalia-session\.target$' /tmp/pkglist.txt
           grep -qE '^-rwxr-xr-x .*usr/bin/cosmalia-session-default$' /tmp/pkglist.txt
+          for path in \
+            usr/share/wayland-sessions/cosmalia.desktop \
+            usr/lib/systemd/user/cosmalia-session.target \
+            usr/lib/systemd/user/noctalia.service \
+            usr/lib/systemd/user/cosmic-settings-daemon.service \
+            usr/share/doc/cosmalia-session/README.md \
+            usr/share/licenses/cosmalia-session/LICENSE; do
+            grep -qE "^-rw-r--r-- .*${path}\$" /tmp/pkglist.txt
+          done
+
+      - name: Install/remove smoke test
+        run: |
+          set -euo pipefail
+          # --nodeps: cosmic-comp-traffic/noctalia are not in this container.
+          pacman -U --noconfirm --nodeps /tmp/pkgout/*.pkg.tar.zst
+          test -x /usr/bin/cosmalia-session
+          test -x /usr/bin/cosmalia-session-default
+          test -f /usr/lib/systemd/user/noctalia.service
+          # The post_install script must not need /etc/greetd (and must not
+          # edit it). Verify the units resolve, then remove the package.
+          install -d -m 700 /tmp/run
+          XDG_RUNTIME_DIR=/tmp/run systemd-analyze --user verify \
+            /usr/lib/systemd/user/cosmalia-session.target \
+            /usr/lib/systemd/user/noctalia.service \
+            /usr/lib/systemd/user/cosmic-settings-daemon.service
+          pacman -R --noconfirm cosmalia-session

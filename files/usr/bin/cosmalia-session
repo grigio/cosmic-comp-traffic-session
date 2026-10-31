@@ -10,11 +10,12 @@
 # systemd user target: /usr/lib/systemd/user/cosmalia-session.target
 #
 # What runs, and nothing else:
-#   cosmic-comp                     compositor
-#   noctalia                        bar, dock, launcher, notifications,
-#                                   lock screen, idle/suspend, polkit agent,
-#                                   MPRIS, screensaver
-#   cosmic-settings-daemon          config change notifications (see below)
+#   cosmic-comp                     compositor, started here (it must run
+#                                   before the socket and the session target)
+#   noctalia.service                bar, dock, launcher, notifications, lock
+#                                   screen, idle/suspend, polkit agent, MPRIS,
+#                                   screensaver; supervised by systemd
+#   cosmic-settings-daemon.service  cosmic-config watchers; supervised
 #   xdg-desktop-portal + COSMIC impl (restarted below, see the comment)
 # Already covered without starting anything here:
 #   dbus-broker                     user bus
@@ -22,6 +23,11 @@
 #   gnome-keyring-daemon            secret service, socket activated
 #   gvfs-*, xdg-document-portal     D-Bus activated on first use, if installed
 #   upower, power-profiles-daemon   system services, session agnostic
+#
+# Noctalia and cosmic-settings-daemon are user units, not children of this
+# script: systemd restarts them if they crash, stops them with the session
+# target, and writes their output to the journal (so the runtime log below
+# cannot grow for the whole session).
 
 export XDG_SESSION_TYPE=wayland
 export XDG_SESSION_DESKTOP=cosmalia
@@ -29,19 +35,42 @@ export XDG_SESSION_DESKTOP=cosmalia
 # (its .portal file has UseIn=COSMIC). Without it no backend matches and
 # screenshots/screencast stop working.
 export XDG_CURRENT_DESKTOP=cosmalia:COSMIC
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+# Keep the user's local bin first for the apps Noctalia spawns, but resolve
+# the session binaries below by absolute path so ~/.local/bin cannot shadow
+# the compositor or the shell.
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+if [ ! -d "$XDG_RUNTIME_DIR" ]; then
+    echo "cosmalia: XDG_RUNTIME_DIR ($XDG_RUNTIME_DIR) does not exist" >&2
+    echo "cosmalia: start this session from a logind login, not from a bare console" >&2
+    exit 1
+fi
+export XDG_RUNTIME_DIR
+
 log="$XDG_RUNTIME_DIR/cosmalia-session.log"
-: >"$log"   # per-session log; appending here grew forever across logins
+: >"$log"   # per-session log; the daemons themselves log to the journal
 
 say() { echo "cosmalia: $*" >>"$log"; }
+
+comp=/usr/bin/cosmic-comp
+noctalia=/usr/bin/noctalia
+settingsd=/usr/bin/cosmic-settings-daemon
+for bin in "$comp" "$noctalia" "$settingsd"; do
+    if [ ! -x "$bin" ]; then
+        say "error: $bin is missing or not executable"
+        echo "cosmalia: $bin is missing or not executable, see $log" >&2
+        exit 1
+    fi
+done
 
 # The cosmic-comp-traffic package provides /usr/bin/cosmic-comp (it conflicts
 # with and replaces cosmic-comp), so the binary name is the stock one. Warn
 # instead of refusing to log in if it was swapped back for the unpatched build:
 # `pacman -S cosmic-comp` silently reverts the decorations.
-if ! pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
+if ! /usr/bin/pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
     say "warning: cosmic-comp-traffic is not installed, /usr/bin/cosmic-comp is unpatched"
     say "reinstall cosmic-comp-traffic from https://github.com/grigio/cosmic-comp-traffic/releases"
 fi
@@ -58,38 +87,39 @@ fi
 stamp="$XDG_RUNTIME_DIR/.cosmalia-session-start"
 : >"$stamp"
 
-cosmic-comp --no-xwayland &
+"$comp" --no-xwayland >>"$log" 2>&1 &
 comp_pid=$!
 
 # On logout the session scope SIGTERMs this script, and even a plain
 # "kill <script>" should not leave the shell and the portals behind.
 cleanup() {
-    if [ -n "${noctalia_pid:-}" ]; then
-        kill "$noctalia_pid" 2>/dev/null
-        noctalia_pid=""
-    fi
-    if [ -n "${settingsd_pid:-}" ]; then
-        kill "$settingsd_pid" 2>/dev/null
-        settingsd_pid=""
-    fi
-    # cosmalia-session.target has BindsTo=graphical-session.target
-    # and xdg-desktop-portal has PartOf=graphical-session.target, so this stops
-    # them instead of leaving them with a stale WAYLAND_DISPLAY.
-    systemctl --user --no-block stop graphical-session.target 2>/dev/null
+    # Stopping cosmalia-session.target stops noctalia.service and
+    # cosmic-settings-daemon.service: both are PartOf= it and have a short
+    # TimeoutStopSec. Blocking (with a timeout) gives them a chance to exit
+    # before logind tears down the scope.
+    /usr/bin/timeout 10 /usr/bin/systemctl --user stop cosmalia-session.target \
+        >>"$log" 2>&1 || true
+    # xdg-desktop-portal is PartOf=graphical-session.target; the cosmic
+    # backend has no PartOf=, so stop it explicitly instead of leaving it
+    # behind with a stale WAYLAND_DISPLAY.
+    /usr/bin/timeout 5 /usr/bin/systemctl --user stop \
+        org.freedesktop.impl.portal.desktop.cosmic.service >>"$log" 2>&1 || true
+    /usr/bin/timeout 10 /usr/bin/systemctl --user stop graphical-session.target \
+        >>"$log" 2>&1 || true
 }
-trap 'cleanup; kill "$comp_pid" 2>/dev/null; exit 143' TERM INT HUP
+trap 'cleanup; [ -n "${comp_pid:-}" ] && kill "$comp_pid" 2>/dev/null; exit 143' TERM INT HUP
 
 # Find the socket cosmic-comp listens on (it picks wayland-N itself): Noctalia
 # and everything it spawns has to be pointed at that one.
 sock=""
 i=0
 while [ "$i" -lt 300 ] && kill -0 "$comp_pid" 2>/dev/null; do
-    if command -v ss >/dev/null 2>&1; then
-        sock=$(ss -xlHp 2>/dev/null |
-            awk -v p="pid=$comp_pid," 'index($0, p) && $2 == "LISTEN" {print $5; exit}')
+    if [ -x /usr/bin/ss ]; then
+        sock=$(/usr/bin/ss -xlHp 2>/dev/null |
+            /usr/bin/awk -v p="pid=$comp_pid," 'index($0, p) && $2 == "LISTEN" {print $5; exit}')
     else
         # no iproute2: newest socket created since the compositor started
-        sock=$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'wayland-*' -type s \
+        sock=$(/usr/bin/find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'wayland-*' -type s \
             -newer "$stamp" -print -quit 2>/dev/null)
     fi
     if [ -n "$sock" ] && [ -S "$sock" ]; then
@@ -106,22 +136,20 @@ if [ -n "$sock" ]; then
 
     # cosmic-comp was started without any display in its environment, so
     # publish ours for portals and other D-Bus/systemd-activated services.
-    dbus-update-activation-environment --systemd \
+    /usr/bin/dbus-update-activation-environment --systemd \
         WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE \
-        XDG_RUNTIME_DIR 2>/dev/null
-    systemctl --user import-environment \
+        XDG_RUNTIME_DIR PATH 2>/dev/null || true
+    /usr/bin/systemctl --user import-environment \
         WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE \
-        XDG_RUNTIME_DIR 2>/dev/null
+        XDG_RUNTIME_DIR PATH 2>/dev/null || true
 
-    # graphical-session.target is RefuseManualStart=yes: starting it directly
-    # is silently refused. Start our own target instead, which pulls it in as
-    # a dependency. Blocking, so units ordered After=graphical-session.target
-    # (the portal backends) see a consistent state before Noctalia starts.
-    systemctl --user start cosmalia-session.target >>"$log" 2>&1
+    # The package installs the session units. Reload in case the user manager
+    # survived a package upgrade and still has the old unit set cached.
+    /usr/bin/systemctl --user daemon-reload 2>/dev/null || true
 
-    # Both are D-Bus activated and may still be running with the previous
-    # session's WAYLAND_DISPLAY (the cosmic backend has no PartOf=, so it
-    # survives logout): restarting them costs ~100 ms and avoids a stale
+    # Both portals are D-Bus activated and may still be running with the
+    # previous session's WAYLAND_DISPLAY (the cosmic backend has no PartOf=,
+    # so it survives logout): restarting them costs ~100 ms and avoids a stale
     # socket. `restart`, not `try-restart`: when the previous compositor died
     # the backend usually exited too, and try-restart ignores failed units —
     # that left the portal without a backend for the whole session. Only the
@@ -129,31 +157,22 @@ if [ -n "$sock" ]; then
     # never selected in this session.
     for svc in xdg-desktop-portal.service \
         org.freedesktop.impl.portal.desktop.cosmic.service; do
-        systemctl --user --no-block restart "$svc" 2>/dev/null
+        /usr/bin/systemctl --user --no-block restart "$svc" >>"$log" 2>&1 || true
     done
 
-    # cosmic-config watches config files through a D-Bus service, and that
-    # service is cosmic-settings-daemon (libcosmic cosmic-config/src/dbus.rs:
-    # Watcher::new_config(&settings_daemon, …)). Without it every app logs
-    # "Failed to create watcher for <config>" and nothing reloads: theme edits,
-    # the Frosted glass switches and keybinds only apply at the next login.
-    # Upstream cosmic-session starts it; this session has to as well.
-    cosmic-settings-daemon >>"$log" 2>&1 &
-    settingsd_pid=$!
-
-    # No --daemon: that double-forks (ppid 1), so "$!" would point at a dead
-    # parent and the cleanup kill would be a no-op. Foreground keeps the pid
-    # meaningful and lets everything Noctalia spawns stay in its cgroup.
-    noctalia >>"$log" 2>&1 &
-    noctalia_pid=$!
+    # cosmalia-session.target pulls in noctalia.service and
+    # cosmic-settings-daemon.service. systemd supervises them from here on:
+    # restart on crash, journal logging, and PartOf= for logout.
+    if ! /usr/bin/systemctl --user start cosmalia-session.target >>"$log" 2>&1; then
+        say "warning: failed to start cosmalia-session.target, see journalctl --user"
+    fi
 else
-    echo "cosmalia: compositor socket not found, not starting Noctalia" >>"$log"
-    noctalia_pid=""
-    settingsd_pid=""
+    say "compositor socket not found, not starting Noctalia"
 fi
 
 wait "$comp_pid"
 status=$?
+say "compositor exited with status $status"
 
 cleanup
 exit "$status"

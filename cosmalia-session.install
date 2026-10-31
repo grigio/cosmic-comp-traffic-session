@@ -1,47 +1,44 @@
-# Runs after a fresh install: make this the session gtkgreet preselects.
-# On upgrade the config is left alone, so a deliberate switch to another session
-# is not undone by every package update.
+# The package installs the session and its systemd user units. It deliberately
+# does not edit /etc/greetd: installing a package should not change which
+# session the greeter starts. Making Cosmalia the default is an explicit step.
 post_install() {
-  if [ ! -x /usr/bin/cosmalia-session-default ]; then
-    return 0
-  fi
+  cat <<'EOF'
+Cosmalia is installed. It was NOT set as the default session: this package
+does not edit /etc/greetd.
 
-  if /usr/bin/cosmalia-session-default >/dev/null 2>&1; then
-    cat <<'EOF'
-Cosmalia (cosmalia-session) is now the greeter default: the -c argument of
-/etc/greetd/config.toml was rewritten (previous file kept next to it as
-config.toml.bak.<timestamp>).
+Greeters that read /usr/share/wayland-sessions (Noctalia Greeter, GDM, SDDM)
+already list it. gtkgreet only lists /etc/greetd/environments plus its -c
+argument. To make Cosmalia selectable without changing the default:
 
-It takes effect at the next greetd start: a reboot, or
-`systemctl restart greetd` while logged out (restarting it from inside a
-session ends that session).
-EOF
-  else
-    cat <<'EOF'
-Could not preselect the session automatically: /etc/greetd/config.toml is
-missing or does not run `gtkgreet -c`. Set it by hand with:
+  sudo cosmalia-session-default --list
 
+To make it the default, run:
   sudo cosmalia-session-default
-
-The session is selectable from the greeter either way.
 EOF
-  fi
 }
 
 post_upgrade() {
-  cat <<'EOF'
-The greeter default was left as it is. To make this session the preselected one
-again:
+  if grep -qs '/usr/local/bin/cosmic-comp-traffic-session' \
+      /etc/greetd/config.toml /etc/greetd/environments 2>/dev/null; then
+    cat <<'EOF'
+The old cosmic-comp-traffic-session launcher is still referenced by the greeter
+but its package was replaced, so that entry no longer exists. Remove the -c
+argument or the /etc/greetd/environments line, or run (this also makes Cosmalia
+the default):
 
   sudo cosmalia-session-default
 EOF
+  fi
 }
 
 pre_remove() {
   cat <<'EOF'
-If this session is the greeter default, point /etc/greetd/config.toml at another
-command first, otherwise the greeter will try to log into a missing session:
+Removing this package does not change /etc/greetd. If Cosmalia is the greeter
+default, point the greeter at another session first, otherwise it will try to
+start a command that no longer exists.
 
   sudo cp -a /etc/greetd/config.toml.bak.<timestamp> /etc/greetd/config.toml
+
+(or edit the -c argument / environments list by hand).
 EOF
 }

@@ -15,13 +15,18 @@ RAM. It is built from two projects:
 It shows up in any Wayland-capable login manager (greetd, GDM, …); the login
 manager itself is installed and configured by you.
 
+Installing the package **does not** change which session the greeter starts.
+Cosmalia is installed and selectable, but the default stays whatever it was.
+Making it the default is a separate, explicit step (see
+[Making it the greeter default](#making-it-the-greeter-default)).
+
 ## The stack
 
 | Component | Job |
 |---|---|
 | `cosmic-comp-traffic` | Wayland compositor; installs itself as `/usr/bin/cosmic-comp` |
 | `noctalia` | bar, dock, launcher, notifications, networking, lock screen, idle/suspend, MPRIS, polkit agent, screensaver |
-| `cosmalia-session` | this package: session launcher, XDG session entry, systemd user target |
+| `cosmalia-session` | this package: session launcher, XDG session entry, systemd user units and the optional greeter helper |
 | `xdg-desktop-portal-cosmic` | portal backend, mainly for screen sharing/screencast, plus screenshots and the file chooser |
 | `cosmic-settings` | settings app, convenient for controlling cosmic-comp features |
 | `cosmic-settings-daemon` | serves cosmic-config change notifications, so theme, appearance and keybind edits apply live |
@@ -43,14 +48,16 @@ to the stock compositor is `sudo pacman -S cosmic-comp`.
 
 | Repo path | Installed to | What |
 |---|---|---|
-| `files/usr/bin/cosmalia-session` | same | session launcher: compositor → wait for the socket → import env → session target → settings daemon → Noctalia |
+| `files/usr/bin/cosmalia-session` | same | session launcher: compositor → wait for the socket → import env → restart portals → start the session target |
 | `files/usr/share/wayland-sessions/cosmalia.desktop` | same | XDG session entry, listed by the greeter as **Cosmalia** |
-| `files/usr/lib/systemd/user/cosmalia-session.target` | same | session target, `BindsTo=graphical-session.target` |
-| `scripts/install.sh` | — | copies `files/` onto `/` (`--default` also runs the next script) |
-| `scripts/set-default-greetd.sh` | `/usr/bin/cosmalia-session-default` | preselects the session in gtkgreet |
+| `files/usr/lib/systemd/user/cosmalia-session.target` | same | session target, `BindsTo=graphical-session.target`; pulls in the two services below |
+| `files/usr/lib/systemd/user/noctalia.service` | same | Noctalia under systemd: `Restart=on-failure`, journal logging, `PartOf=` the session target |
+| `files/usr/lib/systemd/user/cosmic-settings-daemon.service` | same | cosmic-config watchers under systemd, same lifecycle |
+| `scripts/install.sh` | — | copies the session files, the helper and the docs onto `/` |
+| `scripts/set-default-greetd.sh` | `/usr/bin/cosmalia-session-default` | opt-in: preselects the session in gtkgreet (or with `--list`, only lists it) |
 | `PKGBUILD`, `cosmalia-session.install` | — | package, built from this tree by CI on every `v*` tag |
 | `.github/workflows/arch-package.yml` | — | builds and publishes the package for a release tag |
-| `.github/workflows/ci.yml` | — | shellcheck + `makepkg` on every push |
+| `.github/workflows/ci.yml` | — | shellcheck + `makepkg` + install/remove smoke test on every push |
 
 The repo layout mirrors `/`, so installing is a copy and the files can be
 diffed against the live ones at any time.
@@ -66,51 +73,62 @@ gh release download v1.2.0 -R grigio/cosmalia-session \
   -p '*.pkg.tar.zst*' -D /tmp/cosmalia-session
 cd /tmp/cosmalia-session && sha256sum -c ./*.pkg.tar.zst.sha256
 sudo pacman -U ./*.pkg.tar.zst
-sudo cosmalia-session-default        # optional: greeter default
+# Cosmalia is installed, but NOT the default.
+sudo cosmalia-session-default        # optional: make it the default
 
 # B) build it locally from this checkout
 makepkg -fi
-sudo cosmalia-session-default        # optional: greeter default
+sudo cosmalia-session-default        # optional: make it the default
 
 # C) straight from the checkout, no package
-./scripts/install.sh              # session only
-./scripts/install.sh --default    # ... and make it the greeter default
+./scripts/install.sh                 # session + helper + docs, not default
+./scripts/install.sh --default       # ... and make it the default
 ```
+
+None of these edit `/etc/greetd` unless you pass `--default` or run
+`cosmalia-session-default`. Greeters that read `/usr/share/wayland-sessions`
+(Noctalia Greeter, GDM, SDDM) list Cosmalia immediately; gtkgreet only lists
+`/etc/greetd/environments` plus its `-c` argument. To add Cosmalia to a
+gtkgreet dropdown without changing the default:
+
+```sh
+sudo cosmalia-session-default --list
+```
+
+See [Making it the greeter default](#making-it-the-greeter-default) for the
+default itself.
 
 `install.sh` warns if `cosmic-comp-traffic` is not installed, because
 `/usr/bin/cosmic-comp` would then be the unpatched compositor; the session
-itself also checks this at login and logs the warning. It refuses to run if
-either `cosmalia-session` or the old `cosmic-comp-traffic-session` package is
-installed, so pacman's file list stays accurate.
+itself also checks this at login and logs the warning. It refuses to run as
+root, and refuses if either `cosmalia-session` or the old
+`cosmic-comp-traffic-session` package is installed, so pacman's file list stays
+accurate.
 
 ### The package
 
-`arch=(any)`, no sources (it packages this tree). It installs the three session
-files plus `/usr/bin/cosmalia-session-default` and the docs under
-`/usr/share/doc/cosmalia-session/`.
+`arch=(any)`, no sources (it packages this tree). It installs the launcher, the
+XDG session entry, the session target, the two services, the greeter helper,
+and the docs under `/usr/share/doc/cosmalia-session/`.
 
-Every `v<major>.<minor>.<patch>` tag is built by
-`.github/workflows/arch-package.yml` in an `archlinux:base-devel` container and
-attached to its GitHub release. `pkgver` comes from the tag, `pkgrel` from the
-number of commits that touched the packaging (`PKGBUILD`, the `.install` file,
-`files/`, `scripts/`), so a rebuild of a tag is still an upgrade for pacman.
-Locally, `makepkg -f` uses the `pkgver` written in the `PKGBUILD`, or the
-injected one:
+`pkgver` comes from the nearest `v<major>.<minor>.<patch>` tag and `pkgrel` from
+the number of commits that touched packaged files, so a local `makepkg` matches
+the CI-built package for the same commit. Both can be overridden:
 
 ```sh
 SESSION_VERSION=1.2.0 SESSION_PKGREL=4 makepkg -f
 ```
 
-| | |
-|---|---|
-| depends | `cosmic-comp` (provided by `cosmic-comp-traffic`), `noctalia`, `cosmic-settings`, `cosmic-settings-daemon`, `cosmic-screenshot`, `xdg-desktop-portal-cosmic`, `polkit`, `gnome-keyring`, `wireplumber` |
-| optdepends | `polkit-gnome` (fallback polkit agent), `iproute2` (socket lookup via `ss`) |
+Every `v*` tag is built by `.github/workflows/arch-package.yml` in an
+`archlinux:base-devel` container and attached to its GitHub release. A rebuild
+of the same tag still works because `pkgrel` is part of the filename.
 
 `cosmic-comp-traffic` is not in the official repositories, so `makepkg` needs
 `--nodeps` unless it is already installed. `noctalia` and the COSMIC packages
-are in `extra`.
+are in `extra`; on CachyOS the CachyOS repositories carry the same packages.
 
-A post-install message repeats the "run `cosmalia-session-default`" hint, and
+The post-install message tells you Cosmalia was **not** made the default, how
+to add it to a gtkgreet dropdown, and how to make it the default;
 `pre_remove` warns to point the greeter at another session first.
 
 ### Upgrading from `cosmic-comp-traffic-session`
@@ -131,19 +149,31 @@ systemctl --user daemon-reload
 
 ## Making it the greeter default
 
-`/etc/greetd/config.toml` runs `cage -s -- gtkgreet -c <command>`. That `<command>`
-is the default session, not a fixed one:
+This is optional and never done by the package.
+
+With gtkgreet, `/etc/greetd/config.toml` runs `cage -s -- gtkgreet -c <command>`.
+That `<command>` is the default session, not a fixed one:
 
 - gtkgreet puts the `-c` command first in the session combo
   (`config_update_command_selector` in `gtkgreet/src/config.c`), then appends
   every line of `/etc/greetd/environments`, then selects index 0
   (`gtkgreet/src/window.c`);
 - so `-c` is what Enter logs into, and `/etc/greetd/environments` only fills the
-  dropdown.
+  dropdown. Without `-c`, the first line of `environments` is index 0.
 
-`scripts/set-default-greetd.sh` rewrites just the `-c` argument (backups:
-`config.toml.bak.<timestamp>`, `environments.bak.<timestamp>`) and adds the
-session to the dropdown list:
+`scripts/set-default-greetd.sh`:
+
+- rewrites only the `-c` argument on the `command` line — comments are left
+  alone, and unquoted, `"quoted"`, `'single-quoted'`, `\"escaped\"` and
+  `-c=/path` arguments are handled;
+- verifies the rewrite and fails instead of reporting success if it could not
+  do it; edit the line by hand in that case;
+- if gtkgreet has no `-c`, prepends the session to
+  `/etc/greetd/environments`, which makes it the default;
+- adds the session to the dropdown list and removes the old
+  `cosmic-comp-traffic-session` entry;
+- keeps backups (`config.toml.bak.<timestamp>`,
+  `environments.bak.<timestamp>`) and prunes them to the last three.
 
 ```
 -c /usr/bin/cosmalia-session
@@ -154,6 +184,36 @@ so the change takes effect at the next greetd start. Restarting `greetd.service`
 now would end the running session — the session worker is a child of greetd —
 so reboot, or run `sudo systemctl restart greetd` from a TTY while logged out.
 
+### Selecting it without changing the default
+
+To add Cosmalia to the gtkgreet dropdown and leave the current default session
+alone:
+
+```sh
+sudo cosmalia-session-default --list
+```
+
+This only appends `/usr/bin/cosmalia-session` to
+`/etc/greetd/environments` (and drops the dead
+`cosmic-comp-traffic-session` entry, if present). It does not touch `-c` or the
+first line of `environments`, so the session gtkgreet preselects stays the same.
+
+### Noctalia Greeter
+
+If you use [`noctalia-greeter`](https://github.com/noctalia-dev/noctalia-greeter)
+(available in `extra`), you do not need `cosmalia-session-default` at all. It
+lists the sessions in `/usr/share/wayland-sessions` (including
+`cosmalia.desktop`), remembers the last one you picked, and supports a
+declarative default in `/var/lib/noctalia-greeter/greeter.toml`:
+
+```toml
+[session]
+default = "Cosmalia"
+```
+
+`cosmalia-session-default` detects a `noctalia-greeter` command and prints these
+instructions instead of trying to rewrite a gtkgreet line.
+
 ## What runs
 
 Started by the session, deliberately:
@@ -161,9 +221,13 @@ Started by the session, deliberately:
 | Piece | Job |
 |---|---|
 | `cosmic-comp --no-xwayland` | compositor (traffic lights, soft focus ring, `zwlr_foreign_toplevel_manager_v1`, 3-finger workspace swipe, in-process Alt+Tab) |
-| `noctalia` | bar, dock, launcher, notifications, lock screen, idle/suspend, MPRIS, polkit agent, screensaver |
-| `cosmic-settings-daemon` | cosmic-config watchers: live theme, appearance and keybind changes |
+| `noctalia.service` | bar, dock, launcher, notifications, lock screen, idle/suspend, MPRIS, polkit agent, screensaver; systemd restarts it on failure |
+| `cosmic-settings-daemon.service` | cosmic-config watchers: live theme, appearance and keybind changes |
 | `xdg-desktop-portal` + `xdg-desktop-portal-cosmic` | `restart`ed per login: the cosmic backend has no `PartOf=graphical-session.target`, so it survives logout and would otherwise keep a stale `WAYLAND_DISPLAY` |
+
+The two services are `PartOf=cosmalia-session.target`, so logout stops them
+with the target. They log to the journal and are not enabled in the user
+manager; starting the target is enough.
 
 Already covered without starting anything here:
 
@@ -208,10 +272,30 @@ screencast have no implementation.
 ## Logs
 
 ```sh
-tail -f "$XDG_RUNTIME_DIR/cosmalia-session.log"   # session + noctalia output
-journalctl --user -b -u cosmalia-session.target
-journalctl -b _COMM=cosmic-comp
+tail -f "$XDG_RUNTIME_DIR/cosmalia-session.log"   # launcher + compositor
+journalctl --user -b -u noctalia.service -u cosmic-settings-daemon.service
 ```
+
+The launcher/compositor log is truncated at each login. Noctalia and the
+settings daemon write to the journal, so nothing on the runtime tmpfs grows for
+the whole session.
+
+## Troubleshooting
+
+- **Noctalia does not start:** `journalctl --user -b -u noctalia.service`,
+  then `tail "$XDG_RUNTIME_DIR/cosmalia-session.log"`. Check that the compositor
+  socket exists with `ss -xlp | grep wayland`.
+- **Screenshots/screencast do not work:** check
+  `systemctl --user status xdg-desktop-portal.service
+  org.freedesktop.impl.portal.desktop.cosmic.service` and that
+  `XDG_CURRENT_DESKTOP` contains `COSMIC`. Portal logs are in the user journal.
+- **Traffic-light decorations are missing:** `pacman -Q cosmic-comp-traffic`;
+  `/usr/bin/cosmic-comp` must come from that package, not from `cosmic-comp`.
+- **The greeter does not default to Cosmalia:** that is intentional on install.
+  Run `sudo cosmalia-session-default`, or pick Cosmalia once in the greeter
+  (Noctalia Greeter remembers it).
+- **The session log is missing:** `XDG_RUNTIME_DIR` must exist; launch the
+  session from a logind login, not a bare console.
 
 ## Reverting
 
@@ -226,9 +310,17 @@ sudo pacman -R cosmalia-session
 # remove the session (install.sh install):
 sudo rm /usr/share/wayland-sessions/cosmalia.desktop \
         /usr/bin/cosmalia-session \
-        /usr/lib/systemd/user/cosmalia-session.target
+        /usr/bin/cosmalia-session-default \
+        /usr/lib/systemd/user/cosmalia-session.target \
+        /usr/lib/systemd/user/noctalia.service \
+        /usr/lib/systemd/user/cosmic-settings-daemon.service \
+        /usr/share/doc/cosmalia-session/README.md \
+        /usr/share/licenses/cosmalia-session/LICENSE
 systemctl --user daemon-reload
 
 # and the patched compositor, if wanted:
 sudo pacman -S cosmic-comp
 ```
+
+Removing the package does not restore the greeter config; if Cosmalia was the
+default, point the greeter elsewhere first (the `pre_remove` message says so).

@@ -1,0 +1,18 @@
+[Unit]
+Description=Noctalia shell
+Documentation=https://github.com/grigio/cosmalia-session
+PartOf=cosmalia-session.target
+After=cosmalia-session.target cosmic-settings-daemon.service
+Wants=cosmic-settings-daemon.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/noctalia
+Restart=on-failure
+RestartSec=1
+TimeoutStopSec=5
+Slice=session.slice
+
+# Started by cosmalia-session.target (Wants=), not enabled by the user.
