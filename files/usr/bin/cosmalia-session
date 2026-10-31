@@ -84,6 +84,17 @@ if [ -z "${COSMIC_BACKEND:-}" ]; then
     unset WAYLAND_DISPLAY DISPLAY
 fi
 
+# A previous session may have exited without stopping graphical-session.target
+# (labwc, for example, only starts it from its autostart). Because
+# cosmalia-session.target is BindsTo= graphical-session.target, starting ours
+# would reuse the stale target and inherit every PartOf= unit from that
+# session: old portals, the labwc gesture helper, and so on. Tear it down
+# before starting the new session.
+if /usr/bin/systemctl --user is-active --quiet graphical-session.target; then
+    say "stopping stale graphical-session.target from a previous session"
+    /usr/bin/systemctl --user stop graphical-session.target >>"$log" 2>&1 || true
+fi
+
 stamp="$XDG_RUNTIME_DIR/.cosmalia-session-start"
 : >"$stamp"
 
