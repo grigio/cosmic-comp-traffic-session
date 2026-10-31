@@ -69,7 +69,7 @@ pacman owns `/usr`:
 
 ```sh
 # A) the published package (recommended)
-gh release download v1.2.1 -R grigio/cosmalia-session \
+gh release download v1.2.2 -R grigio/cosmalia-session \
   -p '*.pkg.tar.zst*' -D /tmp/cosmalia-session
 cd /tmp/cosmalia-session && sha256sum -c ./*.pkg.tar.zst.sha256
 sudo pacman -U ./*.pkg.tar.zst
@@ -116,7 +116,7 @@ the number of commits that touched packaged files, so a local `makepkg` matches
 the CI-built package for the same commit. Both can be overridden:
 
 ```sh
-SESSION_VERSION=1.2.1 SESSION_PKGREL=7 makepkg -f
+SESSION_VERSION=1.2.2 SESSION_PKGREL=9 makepkg -f
 ```
 
 Every `v*` tag is built by `.github/workflows/arch-package.yml` in an

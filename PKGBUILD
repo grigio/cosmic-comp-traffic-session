@@ -16,11 +16,11 @@
 # that touched packaged files, so a local build matches the CI-built package.
 # Both can be overridden, as .github/workflows/arch-package.yml does:
 #
-#   SESSION_VERSION=1.2.1 SESSION_PKGREL=7 makepkg -f
+#   SESSION_VERSION=1.2.2 SESSION_PKGREL=9 makepkg -f
 
 pkgname=cosmalia-session
 pkgver=${SESSION_VERSION:-$(git -C "${startdir:-$PWD}" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}
-pkgver=${pkgver:-1.2.1}
+pkgver=${pkgver:-1.2.2}
 _pkgrel=$(git -C "${startdir:-$PWD}" rev-list --count HEAD -- \
   PKGBUILD cosmalia-session.install files README.md LICENSE \
   scripts/set-default-greetd.sh 2>/dev/null || true)
