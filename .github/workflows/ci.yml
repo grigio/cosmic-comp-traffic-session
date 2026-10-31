@@ -58,6 +58,7 @@ jobs:
           grep -qE '^-rwxr-xr-x .*usr/bin/cosmalia-session-default$' /tmp/pkglist.txt
           for path in \
             usr/share/wayland-sessions/cosmalia.desktop \
+            usr/share/xdg-desktop-portal/cosmalia-portals.conf \
             usr/lib/systemd/user/cosmalia-session.target \
             usr/lib/systemd/user/noctalia.service \
             usr/lib/systemd/user/cosmic-settings-daemon.service \

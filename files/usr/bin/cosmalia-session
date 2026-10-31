@@ -18,6 +18,8 @@
 #   cosmic-settings-daemon.service  cosmic-config watchers; supervised
 #   xdg-desktop-portal + COSMIC impl (restarted below, see the comment)
 # Already covered without starting anything here:
+#   xdg-desktop-portal-gnome        file dialogs (cosmalia-portals.conf);
+#                                   D-Bus activated, PartOf=graphical-session
 #   dbus-broker                     user bus
 #   pipewire / wireplumber          socket + enabled unit (audio, screencast)
 #   gnome-keyring-daemon            secret service, socket activated
@@ -33,7 +35,9 @@ export XDG_SESSION_TYPE=wayland
 export XDG_SESSION_DESKTOP=cosmalia
 # The ":COSMIC" entry is what makes xdg-desktop-portal pick the cosmic backend
 # (its .portal file has UseIn=COSMIC). Without it no backend matches and
-# screenshots/screencast stop working.
+# screenshots/screencast stop working. The leading "cosmalia" name is what makes
+# the portal read /usr/share/xdg-desktop-portal/cosmalia-portals.conf, which
+# gives FileChooser to the GNOME backend and keeps the rest on cosmic.
 export XDG_CURRENT_DESKTOP=cosmalia:COSMIC
 # Keep the user's local bin first for the apps Noctalia spawns, but resolve
 # the session binaries below by absolute path so ~/.local/bin cannot shadow
@@ -163,9 +167,13 @@ if [ -n "$sock" ]; then
     # so it survives logout): restarting them costs ~100 ms and avoids a stale
     # socket. `restart`, not `try-restart`: when the previous compositor died
     # the backend usually exited too, and try-restart ignores failed units —
-    # that left the portal without a backend for the whole session. Only the
-    # cosmic backend: the gtk/gnome/wlr ones do not match UseIn=COSMIC and are
-    # never selected in this session.
+    # that left the portal without a backend for the whole session.
+    #
+    # Only the cosmic backend is restarted here. xdg-desktop-portal-gnome serves
+    # FileChooser (see /usr/share/xdg-desktop-portal/cosmalia-portals.conf) but
+    # is D-Bus activated and PartOf=graphical-session.target, so it is never
+    # running at this point and cannot hold a stale socket; it starts fresh on
+    # the first file dialog and stops with the session.
     for svc in xdg-desktop-portal.service \
         org.freedesktop.impl.portal.desktop.cosmic.service; do
         /usr/bin/systemctl --user --no-block restart "$svc" >>"$log" 2>&1 || true

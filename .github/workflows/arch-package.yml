@@ -139,8 +139,8 @@ jobs:
           Needs [cosmic-comp-traffic](https://github.com/grigio/cosmic-comp-traffic)
           (which provides \`cosmic-comp\`), \`noctalia\`, \`cosmic-settings\`,
           \`cosmic-settings-daemon\`, \`cosmic-screenshot\`,
-          \`xdg-desktop-portal-cosmic\`, \`polkit\`, \`gnome-keyring\` and
-          \`wireplumber\`. The package replaces the old
+          \`xdg-desktop-portal-cosmic\`, \`xdg-desktop-portal-gnome\`, \`polkit\`,
+          \`gnome-keyring\` and \`wireplumber\`. The package replaces the old
           \`cosmic-comp-traffic-session\` package.
 
           ### Revert

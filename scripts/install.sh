@@ -62,6 +62,14 @@ if ! pacman -Qq cosmic-comp-traffic >/dev/null 2>&1; then
     echo "         https://github.com/grigio/cosmic-comp-traffic/releases" >&2
 fi
 
+# cosmalia-portals.conf selects this backend for FileChooser. Without it the
+# portal falls back to the cosmic picker, so the GNOME dialog never appears.
+if ! pacman -Qq xdg-desktop-portal-gnome >/dev/null 2>&1; then
+    echo "warning: xdg-desktop-portal-gnome is not installed; file dialogs will" >&2
+    echo "         use the COSMIC picker. Install it with:" >&2
+    echo "         sudo pacman -S xdg-desktop-portal-gnome" >&2
+fi
+
 while IFS= read -r -d '' f; do
     rel=${f#"$src"/}
     perm=644
